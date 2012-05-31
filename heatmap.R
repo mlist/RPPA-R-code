@@ -2,6 +2,7 @@ rppa.plot.heatmap <- function(spots, log=NA, fill="Signal", plotNA=T, palette=NA
                               discreteColorA=NA, discreteColorB=NA, discreteColorC=NA, title=NA){
   
   require(ggplot2)
+  require(grid)
   
   if(nrow(spots[!is.na(spots[,fill]),]) == 0){
     cat("There is no information on that property!")
@@ -46,8 +47,14 @@ rppa.plot.heatmap <- function(spots, log=NA, fill="Signal", plotNA=T, palette=NA
     if(dim(empty)[1] != 0) p <- p + geom_tile(data=empty, line=0, fill="grey");
   }
   
+  #how many blocks per row?
+  blocksPerRow <- 12
+  if(!is.null(attr(spots, "blocksPerRow"))) {
+    blocksPerRow <- attr(spots, "blocksPerRow") 
+  }
+  
   p <- p + coord_cartesian(ylim=c(max(spots$Row)+0.5,0.5));
-  p <- p + facet_wrap(~Block, ncol=12);
+  p <- p + facet_wrap(~Block, ncol=blocksPerRow);
   p <- p + scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0));
   p <- p + opts(panel.grid.major = theme_blank(), panel.grid.minor = theme_blank(), 
                 panel.margin=unit(0.1, "lines"), panel.margin=unit(0, "lines"), 
