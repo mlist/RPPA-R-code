@@ -1,3 +1,82 @@
+rppa.serialDilution.manipulate <- function(spots){
+  require(manipulate)
+  
+  manipulate(
+    View(rppa.serialDilution(spots, initial.dilution.estimate, sensible.min, sensible.max)),
+    initial.dilution.estimate=slider(1, 5, step=0.1, initial=2),
+    sensible.min = slider(1,1000, step=10, initial=1),
+    sensible.max = slider(1000,100000, step=1000, initial=60000)
+  )
+}
+
+rppa.serialDilution.batch <- function(slideList)
+{
+  require(plyr)
+  
+  for(slide in slideList)
+  {
+    if(is.null(attr(slide, "title"))){
+      cat("One or more slides are without title! Please use rppa.set.title to assign a title before comparing multiple slides.")
+      return()
+    }
+  }
+  
+  data.protein.conc <- ldply(slideList, function(x) { 
+      result <- rppa.serialDilution(x)
+      result$Slide <- attr(x, "title")
+      return(result)
+    })
+  
+  return(data.protein.conc)
+}
+
+rppa.serialDilution <- function(spots, initial.dilution.estimate=2, sensible.min=5, sensible.max=6.e5, compress.results=T, ...)
+{ 
+  #convert input table so that each dilution is in one column
+  spots.c <- rppa.serialDilution.format(spots)
+  
+  #extract number of different dilutions that are not NA
+  numOfDilutions <- length(unique(spots$DilutionFactor[!is.na(spots$DilutionFactor)]))
+  
+  #calculate matrix of dilutions
+  spots.m <- rppa.serialDilution.dilutionMatrix(spots.c, numOfDilutions)
+  
+  #compute the actual protein estimates using the serial dilution method
+  spots.e <- rppa.serialDilution.compute(spots.m, initial.dilution.estimate, sensible.min, sensible.max)
+  
+  #combine estimates with signal information
+  spots.result <- cbind(spots.c[,1:(ncol(spots.c)-numOfDilutions)], spots.e)
+  
+  if(!compress.results) return(spots.result)
+  
+  spots.summarize <- rppa.proteinConc.summarize(spots.result, ...)
+  
+  return(spots.summarize)
+}
+
+rppa.serialDilution.format <- function(spots, inducerOnlyName=T) {  
+  require(reshape)
+  
+  title <- attr(spots, "title")
+  
+  #filter NA values
+  spots <- spots[!is.na(spots$DilutionFactor),]
+  
+  #transform continuous into descrete
+  spots$DilutionFactor <- as.factor(spots$DilutionFactor)
+  
+  #reverse order of levels so that first column will be purest concentration 
+  spots$DilutionFactor <- factor(spots$DilutionFactor, levels=rev(levels(spots$DilutionFactor)))
+  
+  #extract inducer name
+  if(inducerOnlyName==T) spots$Inducer <- gsub(" [0-9]+[.][0-9] mM", "", spots$Inducer )
+  
+  #cast into table
+  spots.c <- cast(spots, CellLine + SampleName + SampleType + TargetGene + SpotType + SpotClass + Deposition + Treatment + LysisBuffer + Inducer ~ DilutionFactor, value="Signal", add.missing=TRUE, fun.aggregate="median", na.rm=T)
+  
+  return(spots.c)
+}
+
 rppa.serialDilution.pairColumns <- function(spots, startColumn=1){
   
   pairedData <- data.frame(x=numeric(0), y=numeric(0))
@@ -9,6 +88,14 @@ rppa.serialDilution.pairColumns <- function(spots, startColumn=1){
   
   return(pairedData)
   
+}
+
+rppa.serialDilution.dilutionMatrix <- function(spots.c, numOfDilutions)
+{  
+  #extract dilution matrix for serial dilution curve algorithm
+  spots.m <- as.matrix(spots.c[,(ncol(spots.c)-(numOfDilutions-1)):ncol(spots.c)] )
+  
+  return(spots.m)
 }
 
 rppa.serialDilution.filter <- function(data, sensible.min, sensible.max)
@@ -30,21 +117,17 @@ rppa.serialDilution.filter <- function(data, sensible.min, sensible.max)
   return(data)
 }
 
-rppa.serialDilution.compute <- function(spots.c, spots.m, slide.name="unnamed slide", title=NA, normalize.depositions=F, unify.depositions=F, 
-                                        sampleReference=NA, plot.serial.dilution=T
-                                        , normalize.each.cellLine=F, compare="SampleName", produce.plot=T){
+rppa.serialDilution.compute <- function(spots.m, initial.dilution.estimate=2, sensible.min=5, sensible.max=1.e5, make.plot=T){
   
   #pair columns for serial dilution plot
-  pairedData <- rppa.serialDilution.pairColumns(spots.c, 4)
+  pairedData <- rppa.serialDilution.pairColumns(spots.m)
   
   #starting values for non-linear model fit
   a <- max(5, min(spots.m, na.rm=T))
   M <- max(spots.m, na.rm =T) 
-  D0 <- 2
+  D0 <- initial.dilution.estimate
   D <- D0
   minimal.err <- 5
-  sensible.min <- 5 
-  sensible.max <- 1.e5
   
   #filter non-sensible values
   pairedData <- rppa.serialDilution.filter(pairedData, sensible.min, sensible.max)
@@ -55,6 +138,7 @@ rppa.serialDilution.compute <- function(spots.c, spots.m, slide.name="unnamed sl
   #calculate fitted data
   fittedData <- data.frame(x=pairedData$x, y=predict(fit, data.frame(x=pairedData$x)))
   
+  #assemble parameters for serial dilution algorithm
   a <- summary(fit)$parameter[1]
   D <- summary(fit)$parameter[2]
   c <- summary(fit)$parameter[3]
@@ -63,227 +147,17 @@ rppa.serialDilution.compute <- function(spots.c, spots.m, slide.name="unnamed sl
   d.c <- summary(fit)$parameter[6]
   M <- a+1/summary(fit)$parameter[3]
   
+  if(make.plot){
+    #plot serial dilution curve
+    require(ggplot2)
+
+    print(ggplot(pairedData, aes(x=x, y=y)) + opts(title=paste("Serial Dilution Curve Fit, estimated dilution factor ", round(D, 2))) + xlab("Signal at next dilution step") + ylab("Signal") + geom_point() + geom_line(data=fittedData, color="blue") + geom_abline(intercept=0, slope=1, color="red"))
+  }
+  
   #estimate protein concentrations
   serialDilutionResult <- rppa.serialDilution.protein.con(D0=D0, D=D,c=c,a=a,d.a=d.a, d.D=d.D, d.c=d.c,data.dilutes=spots.m)
   
-  data.protein.conc <- rppa.serialDilution.normalize(spots.c, serialDilutionResult,
-                               fittedData, title, pairedData, dilutionFactor=D, normalize.depositions, 
-                               unify.depositions, sampleReference, plot.serial.dilution, 
-                               normalize.each.cellLine, compare)
-  
-  data.protein.conc$Slide <- slide.name
-  
-  if(produce.plot)
-  {
-    rppa.serialDilution.plot(data.protein.conc, fittedData, title, pairedData, 
-                           dilutionFactor=D, normalize.depositions, unify.depositions, 
-                           sampleReference, plot.serial.dilution, normalize.each.cellLine, compare)
-  }
-  
-  return(data.protein.conc)
-}
-
-rppa.serialDilution.normalize <- function(spots.c, serialDilutionResult, fitted, title, pairedData, dilutionFactor, normalize.depositions=F, unify.depositions=F, sampleReference=NA, 
-                                          plot.serial.dilution=T, normalize.each.cellLine=F, compare="SampleName"){
-  data.protein.conc <- cbind(spots.c[,1:3], serialDilutionResult)
-  
-  #normalize depositions
-  if(normalize.depositions)
-  {
-    data.protein.conc <- within(data.protein.conc, {
-      x.weighted.mean <- x.weighted.mean / as.numeric(Deposition)
-      x.err <- x.err / as.numeric(Deposition)
-    })
-  }
-  
-  if(unify.depositions)
-  {
-    data.protein.conc <- ddply(data.protein.conc, .(SampleName, CellLine), summarize, x.weighted.mean=mean(x.weighted.mean), x.err=mean(x.err))
-  }
-  
-  #normalize to reference sample
-  if(!is.na(sampleReference))
-  {
-    toRefSample <- function(data.protein.conc){
-      meanOfRefSample <- mean(subset(data.protein.conc, SampleName == sampleReference)$x.weighted.mean, na.rm=T)
-      data.protein.conc <- within(data.protein.conc, {
-        x.weighted.mean <- x.weighted.mean / meanOfRefSample  
-        x.err <- x.err / meanOfRefSample
-      }, meanOfRefSample=meanOfRefSample)
-    }
-    
-    if(normalize.each.cellLine){  
-      data.protein.conc <- ddply(data.protein.conc, .(CellLine), toRefSample)
-    }
-    else 
-    {
-      data.protein.conc <- toRefSample(data.protein.conc)
-    }
-  }
-  
-  return (data.protein.conc)
-}
-
-rppa.serialDilution.plot <- function(data.protein.conc, fitted=NA, title=NA, pairedData=NA, dilutionFactor=NA, normalize.depositions=F, unify.depositions=F, sampleReference=NA, plot.serial.dilution=T, normalize.each.cellLine=F, compare="SampleName"){
-  
-  require(ggplot2)
-  require(gridExtra)
-          
-  if(is.na(fitted) || is.na(pairedData))
-  {
-    plot.serial.dilution <- FALSE
-  }
-  
-  #plot serial dilution curve
-  if(plot.serial.dilution)
-  {
-    serialDilutionPlot <- ggplot(pairedData, aes(x=x, y=y)) + opts(title=paste("Serial Dilution Curve Fit, estimated dilution factor ", round(dilutionFactor, 2))) + xlab("Signal at next dilution step") + ylab("Signal") + geom_point() + geom_line(data=fitted, color="blue") + geom_abline(intercept=0, slope=1, color="red")
-  }
-  
-  #plot protein concentrations  
-  limits <- aes(ymax = x.weighted.mean + x.err, ymin= x.weighted.mean - x.err)
-  dodge <- position_dodge(width=0.9)
-  
-  if(!unify.depositions){  
-    if(compare=="SampleName")
-    {
-      p <- qplot(SampleName, x.weighted.mean, data=data.protein.conc, 
-               main=title, 
-               ylab="Estimated Protein Concentration (Relative Scale)",xlab="Sample", geom="bar", fill=Deposition, position="dodge")
-    }
-    else
-    {
-      p <- qplot(CellLine, x.weighted.mean, data=data.protein.conc, 
-                 main=title, 
-                 ylab="Estimated Protein Concentration (Relative Scale)",xlab="CellLine", geom="bar", fill=Deposition, position="dodge")
-    }
-  }
-  else { 
-    if(compare=="SampleName")
-    {
-      p <- qplot(SampleName, x.weighted.mean, data=data.protein.conc, 
-               main=title, 
-               ylab="Estimated Protein Concentration (Relative Scale)",xlab="Sample", geom="bar")
-    }
-    else
-    {
-      p <- qplot(CellLine, x.weighted.mean, data=data.protein.conc, 
-                 main=title, 
-                 ylab="Estimated Protein Concentration (Relative Scale)",xlab="CellLine", geom="bar")
-    }
-  }
-  
-  if(compare=="SampleName")
-  { 
-    if(length(unique(data.protein.conc$Slide)) > 1)
-    {
-      p <- p + facet_grid(Slide~CellLine)
-    }
-    else
-    {
-      p <- p + facet_wrap(~CellLine)
-    }
-    p <- p + opts(axis.text.x=theme_text(angle=-45))
-  }
-  else if(compare=="CellLine")
-  {
-    if(length(unique(data.protein.conc$Slide)) > 1)
-    {
-      p <- p + facet_grid(Slide~SampleName)
-    }
-    else
-    {
-      p <- p + facet_wrap(~SampleName)
-    }
-  }
-  
-  p <- p + geom_errorbar(limits, width=0.25, position=dodge)
-  p <- p + geom_hline(aes(yintercept=1))
-  
-  if(plot.serial.dilution) {
-    sidebysideplot <- grid.arrange(p, serialDilutionPlot, heights=c(3/4, 1/4))
-    
-    print(sidebysideplot)
-  }
-  else { print(p) }
-  
-  return(data.protein.conc)
-}
-
-rppa.selectReference <- function(spots)
-{
-  require(tcltk)
-  tt<-tktoplevel()
-  tl<-tklistbox(tt,height=10,selectmode="single",background="white")
-  tkgrid(tklabel(tt,text="Please select a reference sample!"))
-  tkgrid(tl)
-  
-  sampleNames <- levels(spots$SampleName)
-  sampleChoice <<- "Mock"
-  
-  for (i in (1:length(sampleNames)))
-  {
-    tkinsert(tl,"end",sampleNames[i])
-  }
-  tkselection.set(tl,0)  
-  
-  OnOK <- function()
-  {
-    sampleChoice <<- sampleNames[as.numeric(tkcurselection(tl))+1]
-    tkdestroy(tt)
-  }
-  OK.but <-tkbutton(tt,text="   OK   ",command=OnOK)
-  tkgrid(OK.but)
-  tkfocus(tt)
-  tkwait.window(tt)
-  return(sampleChoice)
-}
-
-rppa.serialDilution <- function(spots)
-{  
-  require(manipulate)
-  
-  manipulate(
-    rppa.serialDilution.format(spots, Reference, normalize.depositions, unify.depositions, plot.serial.dilution, normalize.each.cellLine, compare),
-    Reference=picker(as.list(levels(spots$SampleName))),
-    compare=picker("CellLine", "SampleName"),
-    normalize.each.cellLine=checkbox(TRUE, "Normalize celllines to reference sample individually"),
-    normalize.depositions=checkbox(TRUE, "Normalize depositions"),
-    unify.depositions=checkbox(FALSE, "Unify depositions"),
-    plot.serial.dilution=checkbox(TRUE, "Plot serial dilution curve")
-  )
-}
-
-rppa.serialDilution.format <- function(spots, sampleReference=NA, normalize.depositions=F, 
-                                       unify.depositions=F, plot.serial.dilution=T,
-                                       normalize.each.cellLine=F, compare="SampleName", produce.plot=T) {  
-  require(reshape)
-  
-  #sampleReference <- rppa.selectReference(spots)
-  
-  title <- attr(spots, "title")
-  
-  #filter NA values
-  spots <- spots[!is.na(spots$Dilution),]
-  
-  #transform continuous into descrete
-  spots$Dilution <- as.factor(spots$Dilution)
-  
-  #reverse order of levels so that first column will be purest concentration 
-  spots$Dilution <- factor(spots$Dilution, levels=rev(levels(spots$Dilution)))
-  
-  #cast into table
-  spots.c <- cast(spots, CellLine + SampleName + Deposition ~ Dilution, value="Signal", add.missing=TRUE, fun.aggregate="median", na.rm=T)
-  
-  #matrix without identifying columns
-  spots.m <- as.matrix(spots.c[,4:ncol(spots.c)] )  
-  
-  slide.name <- "unnamed slide"
-  if(!is.null(attr(spots, "title"))) { slide.name <- attr(spots, "title") }
-  
-  return(rppa.serialDilution.compute(spots.c, spots.m, slide.name, title, normalize.depositions, 
-                     unify.depositions, sampleReference, plot.serial.dilution, 
-                                   normalize.each.cellLine, compare, produce.plot))
+  return(serialDilutionResult)
 }
 
 rppa.serialDilution.protein.con <- function (D0,D,c,a,d.D,d.c, d.a, data.dilutes,r=1.2,minimal.err=5) {

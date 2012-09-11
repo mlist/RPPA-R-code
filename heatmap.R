@@ -2,7 +2,7 @@ rppa.plot.heatmap <- function(spots, log=NA, fill="Signal", plotNA=T, palette=NA
                               discreteColorA=NA, discreteColorB=NA, discreteColorC=NA, title=NA){
   
   require(ggplot2)
-  require(grid)
+  require(gridExtra)
   
   if(nrow(spots[!is.na(spots[,fill]),]) == 0){
     cat("There is no information on that property!")

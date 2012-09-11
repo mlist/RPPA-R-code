@@ -11,11 +11,10 @@ rppa.hshift <- function(spots)
 {
   if(!is.null(attr(spots, "hshifted")))
   {
-    require(tcltk)
-    returnValue <- tkmessageBox(message = "This slide has already been vshifted! Do you really want to continue?",
-                              icon = "question", type = "yesnocancel", default = "no")
+    cat("This slide has already been vshifted! Do you really want to continue? (yes/no)")
+    answer <- readline()
   
-    if(tclvalue(returnValue) != "yes") return()
+    if(answer != "yes") return()
   }
   
   range <- min(spots$Block): max(spots$Block)
@@ -44,11 +43,11 @@ rppa.hshift <- function(spots)
 rppa.vshift <- function(spots, blocks=NA, rows=NA, by=NA)
 {
   if(!is.null(attr(spots, "vshifted"))){
-    require(tcltk)
-    returnValue <- tkmessageBox(message = "This slide has already been vshifted! Do you really want to continue?",
-                 icon = "question", type = "yesnocancel", default = "no")
     
-    if(tclvalue(returnValue) != "yes") return()
+    cat("This slide has already been vshifted! Do you really want to continue?")
+    answer <- readline()
+    
+    if(answer != "yes") return()
   }
   
   if(is.na(blocks[1])) range <- min(spots$Block):max(spots$Block)
