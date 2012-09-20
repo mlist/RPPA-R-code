@@ -1,24 +1,14 @@
-rppa.slide.plot <- function(spots, specific.dilution=NA)
+rppa.slide.plot <- function(spots, select.columns.sample="CellLine", 
+                            select.columns.A="LysisBuffer",
+                            select.columns.B="Inducer", select.columns.fill="Deposition")
 {
   require(ggplot2)
-  spots <- subset(spots, !is.na(SampleName) & !is.na(DilutionFactor))
-  
-  if(!is.na(specific.dilution))
-  {
-    spots <- subset(spots, DilutionFactor==specific.dilution)
-  
-  
-  spots.stats <- ddply(subset(spots, DilutionFactor==specific.dilution), .(CellLine,SampleName,Deposition), summarise, 
-        mean=mean(Signal, na.rm=T), 
-        median=median(Signal, na.rm=T), 
-        sd=sd(Signal, na.rm=T), 
-        mad=mad(Signal, na.rm=T))
-  }
+  spots <- subset(spots, !is.na(DilutionFactor))
   
   limits <- aes(ymax = mean + sd, ymin= mean - sd)
   
   spots$Deposition <- as.factor(spots$Deposition)
-  q <- qplot(DilutionFactor, Signal, data=spots, geom="bar", fill=Deposition, position="dodge", stat="summary", fun.y="mean") + facet_grid(CellLine~SampleName)
+  q <- qplot(aes_string(select.columns.sample), Signal, data=spots, geom="bar", fill=aes_string(select.columns.fill), position="dodge", stat="summary", fun.y="mean") + facet_grid(aes_string(select.columns.A)~aes_string(select.columns.B))
   print(q)
 }
 
@@ -87,17 +77,41 @@ rppa.slide.cv.plot <- function(spots, plotSampleNumber=T){
   print(sidebysideplot)
 }
 
-rppa.slide.concentration.plot <- function(spots, title=""){
+rppa.slide.concentration.plot <- function(spots, title="", select.columns.A="CellLine", select.columns.B="Inducer", x.log2=T, y.log2=T, only.samples=T){
   require(ggplot2)
-  spots <- subset(spots, !is.na(SampleName) & !is.na(CellLine))
-  spots$realConcentration <- spots$DilutionFactor * spots$Deposition
+  spots <- subset(spots, !is.na(Signal))
+  if(only.samples) spots <- subset(spots, SpotClass=="Sample")
+  spots$Concentration <- spots$DilutionFactor * spots$Deposition
   spots$Deposition <- as.factor(spots$Deposition)
   spots$DilutionFactor <- as.factor(spots$DilutionFactor)
+  spots$A <- spots[,select.columns.A]
+  spots$B <- spots[,select.columns.B]
   
-  q <- qplot(realConcentration, Signal, data=spots, main=title, color=Deposition, shape=DilutionFactor) 
+  q <- qplot(Concentration, Signal, data=spots, main=title, color=Deposition, shape=DilutionFactor) 
   q <- q + geom_point(position = position_jitter(width=0.1))
-  q <- q + facet_grid(SampleName~CellLine, scales="free_y")
   q <- q + stat_smooth(aes(group=1), method="loess")
+  
+  if(!is.null(spots$A) && !is.null(spots$B))
+  {
+    q <- q + facet_grid(A~B)
+  }
+  else if(!is.null(spots$A))
+  {
+    q <- q + facet_grid(~A)
+  }
+  else if(!is.null(spots$B))
+  {
+    q <- q + facet_grid(~B)
+  }
+  
+  if(x.log2)
+  {
+    q <- q + scale_x_continuous(trans="log2", name="log2(Concentration)")
+  }
+  if(y.log2)
+  {
+    q <- q + scale_y_continuous(trans="log2", name="log2(Signal)")
+  }
   print(q)
 }
 

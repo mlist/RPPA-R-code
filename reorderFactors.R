@@ -1,4 +1,4 @@
-rppa.reorder <- function(spots, which.column=NA, new.order=NA, add.na=NA){
+rppa.reorder <- function(spots, which.column=NA, new.order=NA, replace.na=NA){
   
   if(is.na(which.column))
   {
@@ -11,11 +11,21 @@ rppa.reorder <- function(spots, which.column=NA, new.order=NA, add.na=NA){
   
   selected.column <- spots[[which.column]]
   
-  if(is.na(add.na))
+  if(is.na(replace.na))
   {
-    cat("Do you want to have <NA> included as factor? yes / no")
-    if(readline() == "yes") selected.column <- addNA(selected.column)
+    cat("Do you want to replace <NA> as factor? Otherwise it will always be the last factor. yes / no")
+    if(readline() == "yes"){
+      cat("What should the new factor name for NA be?")
+      selected.column <- addNA(selected.column)
+      levels(selected.column)[is.na(levels(selected.column))] <- readline()
+    }
   }
+  else{
+    selected.column <- addNA(selected.column)
+    levels(selected.column)[is.na(levels(selected.column))] <- replace.na
+  } 
+  
+  selected.column <- factor(selected.column)
   
   if(is.na(new.order))
   {
@@ -28,7 +38,7 @@ rppa.reorder <- function(spots, which.column=NA, new.order=NA, add.na=NA){
     if(length(new.order) != length(levels(selected.column))) return ("vector needs to have the same length as levels exist.") 
   }
   
-  spots[[which.column]] <- reorder.factor(selected.column, new.order=new.order)
+  spots[[which.column]] <- factor(selected.column, levels(selected.column)[new.order])
   
   return(spots)
 }

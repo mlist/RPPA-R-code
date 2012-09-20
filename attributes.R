@@ -13,12 +13,12 @@ rppa.set.attributes <- function(spots)
   attr(spots, "blocksPerRow") <- as.numeric(blocksPerRow)
   attr(spots, "antibody") <- antibody
   
-  cat("Do you want to apply vertical and horizontal shifts? yes/no")
-  if(readline() == "yes")
-  {
-    spots <- rppa.vshift(spots)
-    spots <- rppa.hshift(spots)
-  }
+  #cat("Do you want to apply vertical and horizontal shifts? yes/no")
+  #if(readline() == "yes")
+  #{
+  #  spots <- rppa.vshift(spots)
+  #  spots <- rppa.hshift(spots)
+  #}
   return(spots)
 }
 

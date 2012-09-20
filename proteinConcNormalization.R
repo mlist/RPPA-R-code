@@ -1,8 +1,24 @@
-rppa.proteinConc.normalize <- function(slideA, slideB, normalize.with.median.first = T, normalize.per.deposition=T, output.all=F)
+rppa.proteinConc.normalize <- function(slideA, slideB, normalize.with.median.first = T, 
+                                       target.column="Slide", normalize.per.deposition=F, output.all=F)
 {   
+  #check if target column is free on both slides
+  if(output.all && !is.null(slideA[[target.column]]))
+  {
+    cat("The target column of slideA is not available.")
+    return(NA)
+  }  
+  if(output.all && !is.null(slideB[[target.column]]))
+  {
+    cat("The target column of slideB is not available.")
+    return(NA)
+  }
+  slideA[[target.column]] <- attr(slideA, "title")
+  slideB[[target.column]] <- attr(slideB, "title")
+  
   sub.normalize <- function(slideA){
-    slideA$x.err <- slideA$x.err / median(slideA$x.weighted.mean, na.rm=T)
-    slideA$x.weighted.mean <- slideA$x.weighted.mean / median(slideA$x.weighted.mean, na.rm=T)
+    slideA$upper <- slideA$upper / median(slideA$concentrations, na.rm=T)
+    slideA$lower <- slideA$lower / median(slideA$concentrations, na.rm=T)
+    slideA$concentrations <- slideA$concentrations / median(slideA$concentrations, na.rm=T)
     return(slideA)
   }
   
@@ -19,74 +35,43 @@ rppa.proteinConc.normalize <- function(slideA, slideB, normalize.with.median.fir
   }
   
   result <- slideA
-  result$x.weighted.mean <- slideA$x.weighted.mean / slideB$x.weighted.mean
+  result$concentrations <- slideA$concentrations / slideB$concentrations
   #calculate percentage error, build sum and calculate real error on the new value.
-  result$x.err <- (( slideA$x.err /slideA$x.weighted.mean ) + ( slideB$x.err / slideB$x.weighted.mean )) * result$x.weighted.mean
+  result$upper <- ((( slideA$upper - slideA$concentrations) /slideA$concentrations ) + (( slideB$upper - slideB$concentrations) / slideB$concentrations )) * result$concentrations 
+  result$lower <- (( (slideA$concentrations - slideA$lower) / slideA$concentrations ) + ( (slideB$concentrations - slideB$lower) /slideB$concentrations )) * result$concentrations
   
-  result$Slide <- paste(slideA$Slide, "normalized by", slideB$Slide)
+  result$upper <- result$upper + result$concentrations
+  result$lower <- result$concentrations - result$lower
+  result[[target.column]] <- paste(slideA[[target.column]], "normalized by", slideB[[target.column]])
   if(output.all) result <- rbind(slideA, result, slideB)
     
   return(result)
 }
 
-rppa.normalize.depositions <- function(data.protein.conc)
+rppa.specific.dilution <- function(spots, dilution=0.25, deposition=4, ...)
 {
-  data.protein.conc <- within(data.protein.conc, {
-    x.weighted.mean <- x.weighted.mean / as.numeric(Deposition)
-    x.err <- x.err / as.numeric(Deposition)
-  })
+  #if(!is.null(spots$Inducer)) spots$Inducer <- gsub(" [0-9]+[.][0-9] mM", "", spots$Inducer )
   
-  return(data.protein.conc)
-}
-
-rppa.normalize.depositions.mean <- function(data.protein.conc)
-{
-  require(plyr)
+  spots.subset <- subset(spots, DilutionFactor == dilution & Deposition == deposition & !is.na(Signal))
+  spots.subset$x.weighted.mean <- spots.subset$Signal
+  spots.subset$x.err <- 0
+  spots.summarize <- rppa.serialDilution.summarize(spots.subset, ...)
+  spots.summarize$x.err <- spots.summarize$sem
   
-  depos.means <- ddply(subset(data.protein.conc, select=c("x.weighted.mean", "Deposition")), .(Deposition), summarise, deposition.mean = mean(x.weighted.mean))  
+  if(length(spots.summarize$x.err[is.na(spots.summarize$x.err)])>0) cat("WARNING: some samples have only one valid value and no standard error could be computed!")
   
-  data.protein.conc <- merge(data.protein.conc, depos.means)
   
-  data.protein.conc <- within(data.protein.conc, {
-    x.weighted.mean <- x.weighted.mean / deposition.mean
-    x.err <- x.err / as.numeric(deposition.mean)
-  })
+  spots.summarize$concentrations <- spots.summarize$x.weighted.mean
   
-  return(data.protein.conc)
-}
-
-rppa.unify.depositions.mean <- function(data.protein.conc){
-  require(plyr)
+  spots.summarize$upper <- spots.summarize$x.weighted.mean + spots.summarize$x.err
+  spots.summarize$lower <- spots.summarize$x.weighted.mean - spots.summarize$x.err
   
-  if(!is.null(data.protein.conc$A) && !is.null(data.protein.conc$B))
-    data.protein.conc <- ddply(data.protein.conc, .(Sample, A, B, Fill), summarize, x.weighted.mean=mean(x.weighted.mean), x.err=mean(x.err))
+  spots.summarize <- spots.summarize[,!(colnames(spots.summarize) %in% c("sem", "x.weighted.mean", "x.err", "Deposition"))]
   
-  else if(!is.null(data.protein.conc$A))
-    data.protein.conc <- ddply(data.protein.conc, .(Sample, A, Fill), summarize, x.weighted.mean=mean(x.weighted.mean), x.err=mean(x.err))
+  attr(spots.summarize, "title") <- attr(spots, "title")
+  attr(spots.summarize, "antibody") <- attr(spots, "antibody")
   
-  else if(!is.null(data.protein.conc$B))
-    data.protein.conc <- ddply(data.protein.conc, .(Sample, B, Fill), summarize, x.weighted.mean=mean(x.weighted.mean), x.err=mean(x.err))
-  
-  else data.protein.conc <- ddply(data.protein.conc, .(Sample, Fill), summarize, x.weighted.mean=mean(x.weighted.mean), x.err=mean(x.err))
-  
-  return(data.protein.conc)
-}
-
-rppa.unify.depositions.median <- function(data.protein.conc){
-  require(plyr)
-  
-  if(!is.null(data.protein.conc$A) && !is.null(data.protein.conc$B))
-    data.protein.conc <- ddply(data.protein.conc, .(Sample, A, B, Fill), summarize, x.weighted.mean=median(x.weighted.mean), x.err=mean(x.err))
-  
-  else if(!is.null(data.protein.conc$A))
-    data.protein.conc <- ddply(data.protein.conc, .(Sample, A, Fill), summarize, x.weighted.mean=median(x.weighted.mean), x.err=mean(x.err))
-  
-  else if(!is.null(data.protein.conc$B))
-    data.protein.conc <- ddply(data.protein.conc, .(Sample, B, Fill), summarize, x.weighted.mean=median(x.weighted.mean), x.err=mean(x.err))
-  
-  else data.protein.conc <- ddply(data.protein.conc, .(Sample, Fill), summarize, x.weighted.mean=median(x.weighted.mean), x.err=mean(x.err))
-  
-  return(data.protein.conc)
+  return(spots.summarize)
 }
 
 rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, each.A=F, each.B=F, specific.A, specific.B, method="mean")
@@ -110,12 +95,13 @@ rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, eac
       else my.subset <- subset(data.protein.conc, Sample == sampleReference & is.na(A) & is.na(B))  
     } 
        
-    if(method == "mean")  meanOfRefSample <- mean(my.subset$x.weighted.mean, na.rm=T)
-    else if(method == "mean")  meanOfRefSample <- median(my.subset$x.weighted.mean, na.rm=T)
+    if(method == "mean")  meanOfRefSample <- mean(my.subset$concentrations, na.rm=T)
+    else if(method == "mean")  meanOfRefSample <- median(my.subset$concentrations, na.rm=T)
        
     data.protein.conc <- within(data.protein.conc, {
-      x.weighted.mean <- x.weighted.mean / meanOfRefSample  
-      x.err <- x.err / meanOfRefSample
+      concentrations <- concentrations / meanOfRefSample  
+      upper <- upper / meanOfRefSample
+      lower <- lower / meanOfRefSample
     }, meanOfRefSample=meanOfRefSample)
   }
   

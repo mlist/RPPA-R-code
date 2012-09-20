@@ -28,7 +28,7 @@ rppa.superCurve.create.sample.names <- function(spots, select.columns.sample, se
 }
 
 rppa.superCurve.parse.data <- function(Sample, spots)
-{}
+{
   blocksPerRow <- attr(spots, "blocksPerRow")
   Sample <- apply(Sample, 1, paste, collapse=" # ")
   Sample[spots$SpotType!="Sample"] <- "Control"
@@ -74,12 +74,12 @@ rppa.superCurve.create.series <- function(parsed.data, spots)
   return(series)
 }
 
-rppa.superCurve.create.df <- function(new.fit, select.columns.A, select.columns.B, select.columns.fill)
+rppa.superCurve.create.df <- function(new.fit, select.columns.A, select.columns.B, select.columns.fill, log2=F)
 {
-  new.fit <- as.data.frame(new.fit@concentrations)
-  colnames(new.fit) <- c("x.weighted.mean")
-  new.fit$x.weighted.mean <- 2^(new.fit$x.weighted.mean)
-  new.fit$x.err <- 
+  if(log2) new.fit <- data.frame(concentrations=new.fit@concentrations, lower=new.fit@lower, upper=new.fit@upper)
+  else new.fit <- data.frame(concentrations=2^new.fit@concentrations, lower=2^new.fit@lower, upper=2^new.fit@upper)
+  
+  #new.fit$concentrations <- new.fit$concentrations
   
   new.cols <- strsplit2(row.names(new.fit), " # ")
   new.cols <- as.data.frame(new.cols)
@@ -102,8 +102,9 @@ rppa.superCurve.create.df <- function(new.fit, select.columns.A, select.columns.
 
 rppa.superCurve <- function(spots, select.columns.sample=c("CellLine"), 
                             select.columns.A="LysisBuffer", select.columns.B="Inducer", 
-                            select.columns.fill="Treatment", return.fit.only=F, model="logistic", method="nlrob", ci=T, interactive=T){
-  
+                            select.columns.fill="Treatment", return.fit.only=F, model="logistic", 
+                            method="nls", ci=T, interactive=T, grouping="nanocan")
+{ 
   require(limma)
   require(SuperCurve)
   
@@ -113,8 +114,8 @@ rppa.superCurve <- function(spots, select.columns.sample=c("CellLine"),
   if(is.null(attr(spots, "blocksPerRow")))return("Please set attribute 'blocksPerRow' first!")
   
   #correct inducer format
-  if(length(unique(spots$Inducer)) > 1)
-    spots$Inducer <- gsub(" [0-9]+[.][0-9] mM", "", spots$Inducer )
+  #if(length(unique(spots$Inducer)) > 1)
+  #  spots$Inducer <- gsub(" [0-9]+[.][0-9] mM", "", spots$Inducer )
   
   #correct dilution factors
   spots$DilutionFactor <- as.double(spots$DilutionFactor)
@@ -134,7 +135,10 @@ rppa.superCurve <- function(spots, select.columns.sample=c("CellLine"),
   
   series <- rppa.superCurve.create.series(parsedData, spots)
   
-  new.design <- RPPADesign(new.rppa, steps=steps, series=new.rppa@data$Sample, controls=c("Control"), center=T)
+  if(grouping=="nanocan")
+    new.design <- RPPADesign(new.rppa, steps=steps, series=new.rppa@data$Sample, controls=list("Control"), center=F)
+  else
+    new.design <- RPPADesign(new.rppa, grouping=grouping, controls=list("Control"), center=F)
   
   if(interactive){
     image(new.design)
@@ -145,10 +149,20 @@ rppa.superCurve <- function(spots, select.columns.sample=c("CellLine"),
   new.fit <- RPPAFit(new.rppa, new.design, "Mean.Net", ci=ci, method=method, model=model)
   if(return.fit.only) return(new.fit)
   
+  if(interactive){
+  cat("Here you can see the cloud fit plot that shows you how the model fits the data. Press enter to continue.")
   plot(new.fit)
+  readline()
+  cat("Here you can see the residual plot. This plot should help you find irregularities and outliers. Press enter to continue.")
+  image(new.fit)
+  }
+  else{
+    plot(new.fit)
+  }
 
   new.df <- rppa.superCurve.create.df(new.fit, select.columns.A, select.columns.B, select.columns.fill)
-  #new.df$Slide <- attr(spots, "title")
+  attr(new.df, "title") <- attr(spots, "title")
+  attr(new.df, "antibody") <- attr(spots, "antibody")
   
   return(new.df)
 }

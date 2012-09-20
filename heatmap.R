@@ -13,6 +13,9 @@ rppa.plot.heatmap <- function(spots, log=NA, fill="Signal", plotNA=T, palette=NA
    if(is.null(attr(spots, "title"))) title <- "" 
    else title <- attr(spots, "title") 
   }
+  #fix row and column nums
+  spots$Row <- as.integer(spots$Row)
+  spots$Column <- as.integer(spots$Column)
   
   #transform continuous into descrete
   spots$Deposition <- as.factor(spots$Deposition)
@@ -55,11 +58,11 @@ rppa.plot.heatmap <- function(spots, log=NA, fill="Signal", plotNA=T, palette=NA
   
   p <- p + coord_cartesian(ylim=c(max(spots$Row)+0.5,0.5));
   p <- p + facet_wrap(~Block, ncol=blocksPerRow);
-  p <- p + scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0));
-  p <- p + opts(panel.grid.major = theme_blank(), panel.grid.minor = theme_blank(), 
+  p <- p + scale_x_continuous(expand=c(0,0), breaks=seq(1, max(spots$Column), 3)) + scale_y_continuous(expand=c(0,0));
+  p <- p + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
                 panel.margin=unit(0.1, "lines"), panel.margin=unit(0, "lines"), 
                 plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),   
-                plot.title=theme_text(size=18), strip.background=theme_rect(fill="grey90", colour="grey50"))
+                plot.title=element_text(size=18), strip.background=element_rect(fill="grey90", colour="grey50"))
   
   #colorbrewer color palette
   if(!is.na(palette) && is.factor(spots[[fill]])) p <- p + scale_fill_brewer(palette = palette) 
