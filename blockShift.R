@@ -31,6 +31,8 @@ rppa.hshift <- function(spots)
         x$Signal <- rppa.vshift.vector(x$Signal, by)
         x$FG <- rppa.vshift.vector(x$FG, by)
         x$BG <- rppa.vshift.vector(x$BG, by)
+        x$Flag <- rppa.vshift.vector(x$Flag, by)
+        x$Diameter <- rppa.vshift.vector(x$Diameter, by)
         return(x)
       }), blockB$Row)
   }
@@ -69,6 +71,8 @@ rppa.vshift <- function(spots, blocks=NA, rows=NA, by=NA)
           x$Signal <- rppa.vshift.vector(x$Signal, by)
           x$FG <- rppa.vshift.vector(x$FG, by)
           x$BG <- rppa.vshift.vector(x$BG, by)
+          x$Flag <- rppa.vshift.vector(x$Flag, by)
+          x$Diameter <- rppa.vshift.vector(x$Diameter, by)
         }
         
         else{

@@ -121,3 +121,9 @@ rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, eac
   
   return(data.protein.conc)
 }
+
+
+rppa.normalize.fill <- function(data.protein.conc)
+{
+  data.protein.conc
+}

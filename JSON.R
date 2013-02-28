@@ -1,4 +1,4 @@
-rppa.load <- function (slideIndex, baseUrl = "http://localhost:8080/RPPAscanner/spotExport/", filter.bad.signals=T, appy.shifts=T) 
+rppa.load <- function (slideIndex, baseUrl = "http://localhost:8080/MIRACLE/spotExport/", filter.bad.signals=T, apply.shifts=T) 
 {
   require(RJSONIO)
   require(plyr)
