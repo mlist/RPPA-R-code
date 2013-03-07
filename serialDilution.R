@@ -32,6 +32,9 @@ rppa.serialDilution.batch <- function(slideList)
 
 rppa.serialDilution <- function(spots, initial.dilution.estimate=2, sensible.min=5, sensible.max=6e4, method="nls", compress.results=T, ...)
 { 
+  #get title
+  slideTitle <- attr(spots, "title")
+  
   spots <- subset(spots, SpotClass=="Sample")
   
   #convert input table so that each dilution is in one column
@@ -44,12 +47,18 @@ rppa.serialDilution <- function(spots, initial.dilution.estimate=2, sensible.min
   spots.m <- rppa.serialDilution.dilutionMatrix(spots.c, numOfDilutions)
   
   #compute the actual protein estimates using the serial dilution method
-  spots.e <- rppa.serialDilution.compute(spots.m, initial.dilution.estimate, sensible.min, sensible.max, method)
+  spots.e <- rppa.serialDilution.compute(spots.m, initial.dilution.estimate, sensible.min, sensible.max, method, slideTitle)
+  
+  #fit 
+  fit <- attr(spots.e, "fit")
   
   #combine estimates with signal information
   spots.result <- cbind(spots.c[,1:(ncol(spots.c)-numOfDilutions)], spots.e)
   
-  if(!compress.results) return(spots.result)
+  if(!compress.results){
+    attr(spots.result, "fit") <- fit
+    return(spots.result)
+  } 
   
   #filter values under detection limit or saturated
   if(nrow(subset(spots.result, !is.na(xflag))) > 0)
@@ -65,6 +74,7 @@ rppa.serialDilution <- function(spots, initial.dilution.estimate=2, sensible.min
   attr(spots.summarize, "title") <- attr(spots, "title")
   attr(spots.summarize, "antibody") <- attr(spots, "antibody")
   
+  attr(spots.summarize, "fit") <- fit
   return(spots.summarize)
 }
 
@@ -107,7 +117,7 @@ rppa.serialDilution.dilutionMatrix <- function(spots.c, numOfDilutions, highestD
   spots.m <- as.matrix(spots.c[,(ncol(spots.c)-(numOfDilutions-1)):ncol(spots.c)] )
   
   #make sure order is correct
-  if((mean(spots.m[,1])< mean(spots.m[,2]) && highestDilutionFirst) || (mean(spots.m[,1]) > mean(spots.m[,2]) && !highestDilutionFirst))
+  if((mean(spots.m[,1], na.rm=T)< mean(spots.m[,2], na.rm=T) && highestDilutionFirst) || (mean(spots.m[,1], na.rm=T) > mean(spots.m[,2], na.rm=T) && !highestDilutionFirst))
   {
     spots.m <- spots.m[,ncol(spots.m):1]
   }
@@ -134,7 +144,7 @@ rppa.serialDilution.filter <- function(data, sensible.min, sensible.max)
   return(data)
 }
 
-rppa.serialDilution.compute <- function(spots.m, initial.dilution.estimate=2, sensible.min=5, sensible.max=6e4, method="nls", make.plot=T){
+rppa.serialDilution.compute <- function(spots.m, initial.dilution.estimate=2, sensible.min=5, sensible.max=6e4, method="nls", slideTitle="", make.plot=T){
   
   #pair columns for serial dilution plot
   pairedData <- rppa.serialDilution.pairColumns(spots.m)
@@ -168,12 +178,14 @@ rppa.serialDilution.compute <- function(spots.m, initial.dilution.estimate=2, se
   if(make.plot){
     #plot serial dilution curve
     require(ggplot2)
-    
-    print(ggplot(pairedData, aes(x=x, y=y)) + labs(title=paste("Serial Dilution Curve Fit, estimated dilution factor ", round(D, 2))) + xlab("Signal at next dilution step") + ylab("Signal") + geom_point() + geom_line(data=fittedData, color="blue") + geom_abline(intercept=0, slope=1, color="red"))
+    print(ggplot(pairedData, aes(x=x, y=y)) + labs(title=paste("Serial Dilution Curve Fit: ", slideTitle, ", estimated dilution factor ", round(D, 2))) + xlab("Signal at next dilution step") + ylab("Signal") + geom_point() + geom_line(data=fittedData, color="blue") + geom_abline(intercept=0, slope=1, color="red"))
   }
   
   #estimate protein concentrations
   serialDilutionResult <- rppa.serialDilution.protein.con(D0=D0, D=D,c=c,a=a,d.a=d.a, d.D=d.D, d.c=d.c,data.dilutes=spots.m)
+  
+  #add fit object
+  attr(serialDilutionResult, "fit") <- fit
   
   return(serialDilutionResult)
 }

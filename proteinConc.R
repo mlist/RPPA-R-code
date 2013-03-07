@@ -1,17 +1,28 @@
 rppa.proteinConc <-
-  function(data.protein.conc, title="", subset.sample=NA)
+  function(data.protein.conc, title="", subset.sample=NA, isOverview=F)
   { 
     require(manipulate)
     
     manipulate({
       data.protein.conc.copy <- data.protein.conc
       
-      if(normalize.fill)
+      normalizeFill <- function(data.protein.conc){
+        ddply(data.protein.conc, .(Fill, A, B), transform, 
+              concentrations = concentrations / mean(concentrations, na.rm=T),
+              upper = upper / mean(concentrations, na.rm=T),
+              lower = lower / mean(concentrations, na.rm=T)) 
+      }
+      
+      if(isOverview)
       {
-        data.protein.conc.copy <- ddply(data.protein.conc, .(Fill, A, B), transform, 
-                                        concentrations = concentrations / mean(concentrations, na.rm=T),
-                                        upper = upper / mean(concentrations, na.rm=T),
-                                        lower = lower / mean(concentrations, na.rm=T)) 
+        data.protein.conc.copy <- ddply(normalizeFill(data.protein.conc), .(Sample, Slide, A, B), summarise,
+              concentrations = mean(concentrations, na.rm=T),
+              upper = max(upper, na.rm=T),
+              lower = min(lower, na.rm=T)) 
+      }
+      else if(normalize.fill)
+      {
+        data.protein.conc.copy <- normalizeFill(data.protein.conc)
       }
       
       if(normalize.to.ref.sample)
@@ -37,7 +48,7 @@ rppa.proteinConc <-
         reference <- NA
       }
       
-      rppa.proteinConc.plot(data.protein.conc.copy, title, swap, horizontal.line, error.bars, scales.free, subset.sample, reference, each.A, each.B, specific.A.copy, specific.B.copy)
+      rppa.proteinConc.plot(data.protein.conc.copy, title, swap, horizontal.line, error.bars, scales.free, subset.sample, reference, isOverview, each.A, each.B, specific.A.copy, specific.B.copy)
       
     }, swap = checkbox(FALSE, "Swap category orientation"),
                horizontal.line = checkbox(FALSE, "Draw horizontal line through 1"),

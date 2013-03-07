@@ -1,12 +1,27 @@
-rppa.load <- function (slideIndex, baseUrl = "http://localhost:8080/MIRACLE/spotExport/", filter.bad.signals=T, apply.shifts=T) 
+rppa.load <- function (barcode=NA, slideIndex=NA, baseUrl = "http://localhost:8080/MIRACLE/spotExport/", filter.bad.signals=T, apply.shifts=T) 
 {
   require(RJSONIO)
   require(plyr)
   
+  #check input
+  if(is.na(slideIndex) && is.na(barcode)){
+    cat("You have to specify either barcode or slideIndex")
+    return(NA)
+  } 
+  
+  else if(is.na(slideIndex))
+  {
+    slideIndex <- scan(paste(baseUrl, "getIdFromBarcode/", 
+                             barcode, sep = ""), what = "integer")
+    cat(paste("Barcode", barcode, "was identified as slide index", slideIndex, "\n"), sep=" ")
+  }
+  
   #read the data from database
+  cat(paste("Reading spots for slide index", slideIndex, "\n"))
   spots <- ldply(fromJSON(paste(baseUrl, "exportAsJSON/", slideIndex, 
                                 sep = ""), simplify = T, nullValue = "NA"))
-  
+  cat(paste(dim(spots)[1], "spots read. Formatting...\n"))
+      
   #replace "NA" with proper NA
   replace.na <- colwise(function(col) { col[col=="NA"] <- NA; return(col) })
   spots <- replace.na(spots)
@@ -63,6 +78,13 @@ rppa.load <- function (slideIndex, baseUrl = "http://localhost:8080/MIRACLE/spot
     spots <- rppa.filter.neg.values(spots)
   }
   
+  spots <- rppa.set.blocksPerRow(spots, as.integer(scan(paste(baseUrl, "getBlocksPerRow/", 
+                                                   slideIndex, sep = ""), what = "integer")))
+  spots <- rppa.set.title(spots, paste(scan(paste(baseUrl, "getTitle/", 
+                                                   slideIndex, sep = ""), what = "character"), collapse=" "))
+  spots <- rppa.set.antibody(spots, paste(scan(paste(baseUrl, "getAntibody/", 
+                                                   slideIndex, sep = ""), what = "character"), collapse=" "))
+  cat("...done")
   return(spots)
 }
 

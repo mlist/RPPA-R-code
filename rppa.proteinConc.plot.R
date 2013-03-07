@@ -1,25 +1,32 @@
 rppa.proteinConc.plot <-
-function(data.protein.conc, title="", swap=F, horizontal.line=T, error.bars=T, scales, sample.subset=NA, reference=NA, ...){
+function(data.protein.conc, title="", swap=F, horizontal.line=T, error.bars=T, scales, sample.subset=NA, reference=NA, slideAsFill=F, ...){
   
   require(ggplot2)
   require(gridExtra) 
   
   #subset samples and reorder 
-  if(!is.na(sample.subset))
+  if(!is.na(sample.subset)[1])
   {
     data.protein.conc <- subset(data.protein.conc, Sample %in% sample.subset)
     data.protein.conc$Sample <- factor(data.protein.conc$Sample, sample.subset)
   }
+  
   #normalize data
   if(!is.na(reference)){
-    data.protein.conc <- rppa.normalize.to.ref.sample(data.protein.conc, reference, ...)    
+    data.protein.conc <- rppa.normalize.to.ref.sample(data.protein.conc, reference,...)    
   }
       
   #plot protein concentrations  
   limits <- aes(ymax = upper, ymin= lower)
   dodge <- position_dodge(width=0.9)
+  if(slideAsFill)
+  {
+    p <- qplot(Sample, concentrations, data=data.protein.conc, 
+               main=title, stat="identity", 
+               ylab="Estimated Protein Concentration (Relative Scale)",xlab="Sample", geom="bar", fill=Slide, position="dodge")
+  }
   
-  if(!is.null(data.protein.conc$Deposition)){  
+  else if(!is.null(data.protein.conc$Deposition)){  
       p <- qplot(Sample, concentrations, data=data.protein.conc, 
                  main=title, stat="identity", 
                  ylab="Estimated Protein Concentration (Relative Scale)",xlab="Sample", geom="bar", fill=Deposition, position="dodge")

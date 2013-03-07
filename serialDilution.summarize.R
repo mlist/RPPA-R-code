@@ -68,8 +68,13 @@ function(data.protein.conc, method="mean",
   {
     if(length(unique(result$Deposition)) > 1)
     {
-      spots.normalized.depositions <- rppa.normalize.depositions(result)
-      spots.unified <- rppa.unify.depositions.mean(spots.normalized.depositions)  
+      spots.normalized.depositions <- within(result, {
+        x.weighted.mean <- x.weighted.mean / as.numeric(Deposition)
+        x.err  <- x.err / as.numeric(Deposition) 
+      })
+      spots.unified <- ddply(spots.normalized.depositions, .(Sample, Fill, A, B), summarise, 
+            x.weighted.mean = mean(x.weighted.mean, na.rm=T),
+            x.err = mean(x.err, na.rm=T))
       return(spots.unified)
     }
   }

@@ -74,7 +74,24 @@ rppa.specific.dilution <- function(spots, dilution=0.25, deposition=4, ...)
   return(spots.summarize)
 }
 
-rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, each.A=F, each.B=F, specific.A, specific.B, method="mean")
+rppa.duplicate.nas <- function(data.protein.conc.copy)
+{
+  foreach(property=c("A","B")) %do%{
+    data.protein.conc.copy <- foreach(i=1:nrow(data.protein.conc.copy), .combine=rbind) %do%  {
+      if(is.na(data.protein.conc.copy[i,property])){
+        foreach(A=levels(data.protein.conc.copy[[property]]), .combine=rbind) %do% {
+          currentRow <- data.protein.conc.copy[i,]
+          currentRow[[property]] <- A
+          return(currentRow)
+        }
+      }
+      else return(data.protein.conc.copy[i,])
+    }
+  }
+  return(data.protein.conc.copy)
+}
+
+rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, each.A=F, each.B=F, specific.A, specific.B, each.fill=F, method="mean")
 {
   require(plyr)
   
@@ -96,7 +113,7 @@ rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, eac
     } 
        
     if(method == "mean")  meanOfRefSample <- mean(my.subset$concentrations, na.rm=T)
-    else if(method == "mean")  meanOfRefSample <- median(my.subset$concentrations, na.rm=T)
+    else if(method == "median")  meanOfRefSample <- median(my.subset$concentrations, na.rm=T)
        
     data.protein.conc <- within(data.protein.conc, {
       concentrations <- concentrations / meanOfRefSample  
@@ -104,8 +121,19 @@ rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, eac
       lower <- lower / meanOfRefSample
     }, meanOfRefSample=meanOfRefSample)
   }
+  if(each.fill)
+  {
+    data.protein.conc <- ddply(data.protein.conc, .(A, B, Slide), function(x, sampleRef){ 
+          within(x, {
+              reference <- concentrations[Sample==sampleRef]
+              concentrations <- concentrations / reference
+              upper <- upper / reference
+              lower <- lower / reference
+           })
+    }, sampleRef=sampleReference)
+  }
   
-  if(each.A && each.B){  
+  else if(each.A && each.B){  
     data.protein.conc <- ddply(data.protein.conc, .(A, B), toRefSample)
   }
   else if(each.A){
@@ -120,10 +148,4 @@ rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, eac
   }
   
   return(data.protein.conc)
-}
-
-
-rppa.normalize.fill <- function(data.protein.conc)
-{
-  data.protein.conc
 }
