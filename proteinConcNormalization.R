@@ -91,7 +91,7 @@ rppa.duplicate.nas <- function(data.protein.conc.copy)
   return(data.protein.conc.copy)
 }
 
-rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, each.A=F, each.B=F, specific.A, specific.B, each.fill=F, method="mean")
+rppa.normalize.to.ref.sample <- function(data.protein.conc, sampleReference, each.A=F, each.B=F, specific.A=NULL, specific.B=NULL, each.fill=F, method="mean")
 {
   require(plyr)
   

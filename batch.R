@@ -1,4 +1,4 @@
-rppa.batch.sdc <- function(slideList, normalizeTo=NA, surface.normalization=T, plotHeatmaps=T, saveDir=NA, positive.control="IgG 400",
+rppa.batch.sdc <- function(slideList, normalizeTo=NA, surface.normalization=T, plotHeatmaps=T, plotConcEstimates=T, saveDir=NA, positive.control="IgG 400",
                            swap=F, horizontal.line=T, error.bars=T, scales="free", sample.subset=NA, reference=NA,...)
 {
   #requirements
@@ -85,9 +85,12 @@ rppa.batch.sdc <- function(slideList, normalizeTo=NA, surface.normalization=T, p
   result.sdc <- foreach(slide=slideList) %do% sdc(slide)
   
   #plot protein concentration 
-  cat("Plotting protein concentration estimates...\n")
-  foreach(pConc=result.sdc) %do% proteinConc(pConc, "non-normalized")
-  cat("...Done!\n")
+  if(plotConcEstimates)
+  {
+    cat("Plotting protein concentration estimates...\n")
+    foreach(pConc=result.sdc) %do% proteinConc(pConc, "non-normalized")
+    cat("...Done!\n")
+  }
   
   #method for protein concentration normalization
   proteinConcNorm <- function(slide.sdc, normalizeTo.sdc){  
@@ -106,26 +109,42 @@ rppa.batch.sdc <- function(slideList, normalizeTo=NA, surface.normalization=T, p
     normalize <- function(normalizeTo, result.sdc){
       normalizeTo.sdc <- sdc(normalizeTo)
       cat(paste("Normalizing slides to", attr(normalizeTo, "title"), "...\n"))
-      result.normalized <- foreach(slide.sdc=result.sdc) %do% proteinConcNorm(slide.sdc, normalizeTo.sdc) 
+      foreach(slide.sdc=result.sdc) %do% proteinConcNorm(slide.sdc, normalizeTo.sdc) 
     }
     
     if(!is.data.frame(normalizeTo) && is.list(normalizeTo))
-    {
-       #TODO 
+    { 
+      #TODO normalizeTo <- rppa.proteinConc.average(normalizeTo)
     }
-    else normalize(normalizeTo, result.sdc)
+    result.normalized <- normalize(normalizeTo, result.sdc)
   }
   
-  if(!is.na(saveDir)[1]) setwd(keepWd)
-  cat("Done!\n")
-  
   if(exists("result.normalized")) result <- result.normalized
-  else result <- result.sdc
+  else{
+    result <- foreach(slide.sdc=result.sdc) %do%{
+      slide.sdc$Slide <- attr(slide.sdc, "antibody")
+      #center data 
+      slide.sdc <- ddply(slide.sdc, .(A,B, Fill), function(slide.sdc){
+        meanConcentrations <- mean(slide.sdc$concentrations, na.rm=T) 
+        slide.sdc$concentrations <- slide.sdc$concentrations / meanConcentrations
+        slide.sdc$upper <- slide.sdc$upper / meanConcentrations
+        slide.sdc$lower <- slide.sdc$lower / meanConcentrations
+        return(slide.sdc)
+      })
+      
+      return(slide.sdc)
+    }
+  } 
   
   #plot protein concentration 
-  cat("Plotting protein concentration estimates (normalized)...\n")
-  foreach(pConc=result) %do% proteinConc(pConc, paste("normalized to ", normalizeTo))
-  cat("...Done!\n")
+  if(plotConcEstimates && !is.na(normalizeTo[1]))
+  {
+    cat("Plotting protein concentration estimates (normalized)...\n")
+    foreach(pConc=result) %do% proteinConc(pConc, paste("normalized to ", attr(normalizeTo, "title")))
+    cat("...Done!\n")
+  }
+  if(!is.na(saveDir)[1]) setwd(keepWd)
+  cat("Done!\n")
   
   cat("Plotting overview...\n")
   rppa.proteinConc.overview(ldply(result), title="Antibody Protein Estimate Comparison", subset.sample=sample.subset)
@@ -171,7 +190,7 @@ rppa.batch.dunnett.plot <- function(pvalues, p.cutoff=1)
   q <- qplot(x=Samples, y=estimates, data=pvalues.subset, fill=pvalues, ylab="estimated difference", geom="bar", stat="identity", label=symbol)
   q <- q + geom_errorbar(limits, position="dodge", width=0.25)
   q <- q + theme(axis.text.x = element_text(angle=-45, hjust=0, vjust=1))
-  q <- q + scale_fill_gradient2(trans="log", low="red", guide="legend", mid="orange", high="yellow", midpoint=1e-6, breaks=10^(-(seq(0, 12, by=3))))
+  q <- q + scale_fill_gradient2(trans="log", low="red", guide="legend", mid="orange", high="yellow", midpoint=1e-6, breaks=10^(-(seq(-3, 12, by=3))))
   q <- q + facet_grid(slide ~ A + B)
   q <- q + geom_text(aes(y = estimates + stderror), vjust=0.1)
   q <- q + scale_y_continuous(labels = percent)
