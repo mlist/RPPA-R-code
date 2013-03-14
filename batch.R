@@ -1,4 +1,4 @@
-rppa.batch.sdc <- function(slideList, normalizeTo=NA, surface.normalization=T, plotHeatmaps=T, plotConcEstimates=T, saveDir=NA, positive.control="IgG 400",
+rppa.batch.sdc <- function(slideList, normalizeTo=NA, csv2=F, surface.normalization=T, plotHeatmaps=T, plotConcEstimates=T, saveDir=NA, positive.control="IgG 400",
                            swap=F, horizontal.line=T, error.bars=T, scales="free", sample.subset=NA, reference=NA,...)
 {
   #requirements
@@ -19,7 +19,8 @@ rppa.batch.sdc <- function(slideList, normalizeTo=NA, surface.normalization=T, p
       }
       
       #write raw data
-      write.csv2(slide, paste(attr(slide, "title"), "Raw Data.csv"))
+      if(csv2) write.csv2(slide, paste(attr(slide, "title"), "Raw Data.csv"))
+      else write.csv(slide, paste(attr(slide, "title"), "Raw Data.csv"))
     }
   
     if(surface.normalization){
@@ -62,8 +63,9 @@ rppa.batch.sdc <- function(slideList, normalizeTo=NA, surface.normalization=T, p
       dev.off()
 
       #write out estimates found through serial dilution curve fit
-      write.csv2(slide, paste(attr(slide, "title"), "Serial Dilution Curve Estimates.csv"))
-    } 
+      if(csv2) write.csv2(slide, paste(attr(slide, "title"), "Serial Dilution Curve Estimates.csv"))
+      else write.csv(slide, paste(attr(slide, "title"), "Serial Dilution Curve Estimates.csv"))
+    }
     return(slide)
   }
   
@@ -98,7 +100,9 @@ rppa.batch.sdc <- function(slideList, normalizeTo=NA, surface.normalization=T, p
     slide.normalized$Slide <- attr(slide.sdc, "antibody")
     
     if(!is.na(saveDir)[1]){
-      write.csv2(slide.normalized, paste(attr(slide.sdc, "title"), " - PConcEst normalized by", attr(normalizeTo.sdc, "antibody"), ".csv"))
+      
+      if(csv2) write.csv2(slide.normalized, paste(attr(slide.sdc, "title"), " - PConcEst normalized by", attr(normalizeTo.sdc, "antibody"), ".csv"))
+      else write.csv(slide.normalized, paste(attr(slide.sdc, "title"), " - PConcEst normalized by", attr(normalizeTo.sdc, "antibody"), ".csv"))
     }
     return(slide.normalized)
   }
