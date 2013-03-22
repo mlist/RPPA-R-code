@@ -93,10 +93,10 @@ rppa.serialDilution.format <- function(spots, inducerOnlyName=T) {
   #if(inducerOnlyName==T) spots$Inducer <- gsub(" [0-9]+[.][0-9] mM", "", spots$Inducer )
   
   #cast into table
-  spots.c <- cast(spots, CellLine + NumberOfCellsSeeded + SampleName + SampleType + TargetGene + SpotType + SpotClass + Deposition + Treatment + LysisBuffer + Inducer ~ DilutionFactor, value="Signal", add.missing=TRUE, fun.aggregate="median", na.rm=T)
+  spots.c <- cast(spots, CellLine + NumberOfCellsSeeded + SampleName + SampleType + TargetGene + SpotType + SpotClass + Deposition + Treatment + LysisBuffer + Inducer + Replicate ~ DilutionFactor, value="Signal", add.missing=TRUE, fun.aggregate="median", na.rm=T)
   
   return(spots.c)
-}
+} 
 
 rppa.serialDilution.pairColumns <- function(spots, startColumn=1){
   

@@ -144,7 +144,7 @@ rppa.batch.sdc <- function(slideList, normalizeTo=NA, csv2=F, surface.normalizat
   if(plotConcEstimates && !is.na(normalizeTo[1]))
   {
     cat("Plotting protein concentration estimates (normalized)...\n")
-    foreach(pConc=result) %do% proteinConc(pConc, paste("normalized to ", attr(normalizeTo, "title")))
+    foreach(pConc=result) %do% proteinConc(pConc, paste("normalized to ", attr(normalizeTo, "antibody")))
     cat("...Done!\n")
   }
   if(!is.na(saveDir)[1]) setwd(keepWd)
@@ -167,6 +167,9 @@ rppa.batch.dunnett<- function(batch.result, referenceSample, p.cutoff=1, sample.
       result$Sample <- factor(result$Sample, sample.subset)
       return(result)
     }, sample.subset=sample.subset, duplicate.nas=duplicate.nas)
+  }
+  else{
+    batch.result <- foreach(slide=batch.result) %do% rppa.duplicate.nas(slide)
   }
   
   #for each of the slides calculate the test statistics (pairwise comparison using t-test with multiple comparison adjustment)
