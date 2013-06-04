@@ -1,8 +1,8 @@
 rppa.serialDilution.summarize <-
 function(data.protein.conc, method="mean", 
                                           select.columns.sample=c("SampleName"), 
-                                          select.columns.A=c("LysisBuffer"),
-                                          select.columns.B=c("CellLine"), select.columns.fill=c("Deposition"))
+                                          select.columns.A=c("Treatment"),
+                                          select.columns.B=c("CellLine"), select.columns.fill=c("NumberOfCellsSeeded"))
 {
   data.protein.conc$x.err.percent <- data.protein.conc$x.err / data.protein.conc$x.weighted.mean
   
@@ -37,12 +37,12 @@ function(data.protein.conc, method="mean",
     fillAttribute <- paste(select.columns.fill, collapse=" | ")
   }
   else{
-    cat("Fill attribute cannot be empty in the current version, using Depositions per default.")
-    Fill <- data.protein.conc[,"Deposition"]
+    cat("Fill attribute cannot be empty in the current version, using NumberOfCellsSeeded per default.")
+    Fill <- data.protein.conc[,"NumberOfCellsSeeded"]
     newColumns <- cbind(newColumns, Fill)
-    fillAttribute <- "Deposition"
+    fillAttribute <- "NumberOfCellsSeeded"
   }
-  
+
   result <- cbind(newColumns, data.protein.conc[,c("Deposition", "x.weighted.mean", "x.err.percent")])
   
   if(!is.na(select.columns.A) && !is.na(select.columns.B))
@@ -55,7 +55,7 @@ function(data.protein.conc, method="mean",
     result <- ddply(result, .(Sample, B, Fill, Deposition), summarise, x.weighted.mean=mean(x.weighted.mean, na.rm=T), x.err=sum(x.err.percent), sem=sqrt(var(x.weighted.mean,na.rm=TRUE)/length(na.omit(x.weighted.mean))))
   
   else result <- ddply(result, .(Sample, Fill, Deposition), summarise, x.weighted.mean=mean(x.weighted.mean, na.rm=T), x.err=sum(x.err.percent), sem=sqrt(var(x.weighted.mean,na.rm=TRUE)/length(na.omit(x.weighted.mean))))
-  
+
   result$x.err <- result$x.weighted.mean * result$x.err
   
   #make sure A, B and sample are factors

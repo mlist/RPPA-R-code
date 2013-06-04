@@ -41,7 +41,7 @@ rppa.serialDilution <- function(spots, initial.dilution.estimate=2, sensible.min
   spots.c <- rppa.serialDilution.format(spots)
   
   #extract number of different dilutions that are not NA
-  numOfDilutions <- length(unique(spots$DilutionFactor[!is.na(spots$DilutionFactor)]))
+  numOfDilutions <- length(unique(spots$DilutionFactor[!is.na(spots$DilutionFactor)])) 
   
   #calculate matrix of dilutions
   spots.m <- rppa.serialDilution.dilutionMatrix(spots.c, numOfDilutions)
@@ -93,7 +93,7 @@ rppa.serialDilution.format <- function(spots, inducerOnlyName=T) {
   #if(inducerOnlyName==T) spots$Inducer <- gsub(" [0-9]+[.][0-9] mM", "", spots$Inducer )
   
   #cast into table
-  spots.c <- cast(spots, CellLine + NumberOfCellsSeeded + SampleName + SampleType + TargetGene + SpotType + SpotClass + Deposition + Treatment + LysisBuffer + Inducer + Replicate ~ DilutionFactor, value="Signal", add.missing=TRUE, fun.aggregate="median", na.rm=T)
+  spots.c <- cast(spots, CellLine + NumberOfCellsSeeded + SampleName + SampleType + TargetGene + SpotType + SpotClass + Deposition + Treatment + LysisBuffer + Inducer + Replicate ~ DilutionFactor, value="Signal", add.missing=FALSE, fun.aggregate="median", na.rm=T)
   
   return(spots.c)
 } 

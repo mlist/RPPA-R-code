@@ -43,6 +43,9 @@ rppa.load <- function (barcode=NA, slideIndex=NA, baseUrl = "http://localhost:80
   spots$SampleType <- as.factor(spots$SampleType)
   spots$TargetGene <- as.factor(spots$TargetGene)
   spots$DilutionFactor <- as.double(spots$DilutionFactor)
+  spots$PlateCol <- as.integer(spots$PlateCol)
+  spots$PlateRow <- as.integer(spots$PlateRow)
+  spots$PlateLayout <- as.integer(spots$PlateLayout)
   
   #add shifts
   if (length(fromJSON(paste(baseUrl, "exportShiftsAsJSON/", 

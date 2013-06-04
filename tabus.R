@@ -7,7 +7,6 @@ rppa.tabus <- function(spots, nrep=1, ...){
   
   #extract number of different dilutions that are not NA
   numOfDilutions <- length(unique(spots$DilutionFactor[!is.na(spots$DilutionFactor)]))
-  
   #calculate matrix of dilutions
   spots.m <- rppa.serialDilution.dilutionMatrix(spots.c, numOfDilutions, highestDilutionFirst=F)
   

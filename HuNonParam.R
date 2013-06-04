@@ -1,4 +1,5 @@
 rppa.nonparam <- function(spots, nrep=1, ...){
+  require(cobs)
   
   spots <- subset(spots, SpotClass=="Sample")
   
@@ -11,10 +12,10 @@ rppa.nonparam <- function(spots, nrep=1, ...){
   #calculate matrix of dilutions
   spots.m <- rppa.serialDilution.dilutionMatrix(spots.c, numOfDilutions, highestDilutionFirst=F)
   
-  nonpa <- getnonpest(spots.m,3);
+  nonpa <- getnonpest(spots.m,3)
   
   #combine estimates with signal information
-  spots.result <- cbind(spots.c[,1:(ncol(spots.c)-numOfDilutions)], x.weighted.mean=tabus$pass2, x.err=NA)
+  spots.result <- cbind(spots.c[,1:(ncol(spots.c)-numOfDilutions)], x.weighted.mean=nonpa$x0new, x.err=NA)
   
   spots.summarize <- rppa.serialDilution.summarize(spots.result, ...)
   spots.summarize$concentrations <- 2^spots.summarize$x.weighted.mean
